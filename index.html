@@ -82,10 +82,21 @@ function dl(n,t,m){const a=document.createElement("a");a.href=URL.createObjectUR
 function exp(){dl("thiet-bi-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(items),"application/json")}
 function expCsv(){const r=[["name","code","type","area","status","note"],...items.map(i=>[i.name,i.code,i.type,i.area,i.status,i.note])];dl("thiet-bi.csv","\ufeff"+r.map(x=>x.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n"),"text/csv")}
 function parseCsv(t){const R=[];let r=[],f="",q=false;t=t.replace(/^\ufeff/,"");for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}else if(c=='"')q=true;else if(c==","||c==";"){r.push(f);f=""}else if(c=="\n"){r.push(f);R.push(r);r=[];f=""}else if(c!="\r")f+=c}if(f||r.length){r.push(f);R.push(r)}return R}
-function imp(file){if(!file)return;const rd=new FileReader();rd.onload=async()=>{try{let arr;
+const TYPE_MAP={"plc":"PLC/DCS","biến tần (vfd)":"Biến tần","biến tần":"Biến tần"};
+const STATUS_MAP={hoat_dong:"tot",hoạt_động:"tot",theo_doi:"theo",theo_dõi:"theo",hong:"hong",ngung:"hong"};
+function imp(file){if(!file)return;const rd=new FileReader();rd.onload=async()=>{try{let arr,logs=[];
  if(file.name.endsWith(".csv")){const R=parseCsv(rd.result),h=R[0].map(x=>x.trim().toLowerCase());arr=R.slice(1).filter(r=>r.some(x=>x)).map(r=>{const o={};h.forEach((k,i)=>o[k]=r[i]);return o})}
- else{const j=JSON.parse(rd.result);arr=Array.isArray(j)?j:(j.items||j.devices||j.thietbi||[])}
- const rows=arr.map(o=>({name:String(o.name||o.ten||"").trim(),code:String(o.code||o.ma||""),type:o.type||o.loai||"Khác",area:o.area||o.khuvuc||o.location||"",status:["tot","theo","hong"].includes(o.status)?o.status:"tot",note:o.note||o.ghichu||"",star:!!(o.star||o.important),hist:o.hist||o.history||[]})).filter(r=>r.name);
+ else{const j=JSON.parse(rd.result);arr=Array.isArray(j)?j:(j.items||j.devices||j.thietbi||j.equipment||[]);logs=Array.isArray(j)?[]:(j.logs||j.hist||j.history||[])}
+ // gộp nhật ký (logs) theo equipmentId/id vào từng thiết bị
+ const logsByOld={};logs.forEach(l=>{const eid=l.equipmentId||l.deviceId||l.id;if(!eid)return;
+  (logsByOld[eid]=logsByOld[eid]||[]).push({d:l.date||l.d||"",t:[l.type,l.description||l.desc||l.t,l.technician?("- "+l.technician):""].filter(Boolean).join(": ").replace(/^: /,"").replace(/: -/,",")})});
+ const rows=arr.map(o=>{
+  const rawType=(o.type||o.loai||"").trim();const type=TYPE_MAP[rawType.toLowerCase()]||rawType||"Khác";
+  const rawStatus=(o.status||"").trim();const status=STATUS_MAP[rawStatus]||(["tot","theo","hong"].includes(o.status)?o.status:"tot");
+  const oldId=o.id;
+  return{name:String(o.name||o.ten||"").trim(),code:String(o.code||o.ma||o.assetCode||""),type,
+   area:o.area||o.khuvuc||o.location||"",status,note:o.note||o.ghichu||o.notes||"",
+   star:!!(o.star||o.important),hist:o.hist||o.history||(oldId&&logsByOld[oldId])||[]}}).filter(r=>r.name);
  const seen=new Map();rows.forEach(r=>seen.set(r.name+"\u0001"+r.code,r));const U=[...seen.values()];
  if(!U.length)return alert("File không có thiết bị nào.");
  if(!confirm("Nhập "+U.length+" thiết bị? Thiết bị trùng tên+mã sẽ bị ghi đè.\nNên sao lưu trước."))return;
