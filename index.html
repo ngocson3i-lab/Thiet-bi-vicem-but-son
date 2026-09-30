@@ -25,9 +25,13 @@ svg{display:block;flex-shrink:0}
 .chip.on{border-color:var(--pri);background:var(--pri);color:#fff}
 .chip.crit.on{border-color:var(--accent);background:var(--accent)}
 main{flex:1;overflow-y:auto;padding:14px 16px 4px}
-.item{width:100%;text-align:left;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:11px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.item{width:100%;text-align:left;background:#fff;border:1px solid var(--bd);border-radius:6px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;cursor:pointer}
 .item .t{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .s{font-size:12px;color:var(--sec);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.stat3{display:flex;gap:10px;margin-bottom:18px}
+.stat3 .c{flex:1;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:12px}
+.stat3 .c b{font-size:22px;display:block;margin-bottom:2px}
+.stat3 .c .l{font-size:11.5px;color:var(--sec)}
 .star-btn{background:none;border:none;cursor:pointer;display:flex;padding:2px}
 .badge{font-size:11px;font-weight:600}
 nav{display:flex;background:#fff;border-top:1px solid var(--bd);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
@@ -186,12 +190,22 @@ function render(){if(view!=='list'&&view!=='sum'){return}
  const q=norm($('q').value);
  let a=items.filter(i=>(!critOnly||i.star)&&(filter==='Tất cả'||i.type===filter)&&(!q||norm([i.name,i.code,i.type,i.area,i.note].join(' ')).includes(q)));
  const n=a.length;a=a.slice(0,100);
- L.innerHTML=(a.map(i=>{const st=STATUS[i.status]||STATUS.hoat_dong;
-  return `<button class="item" onclick="openView('${i.id}')"><div style="flex:1;min-width:0"><div class="t">${esc(i.name)}</div><div class="s"><span>${esc(i.type)}</span>${i.area?`<span>${ICON('pinsm')}${esc(i.area)}</span>`:''}</div></div><div style="text-align:right;flex-shrink:0"><div class="badge" style="color:${st.text}">${st.label}</div></div></button>`
- }).join('')||`<div class="empty">Chưa có thiết bị nào phù hợp. Nhấn nút + để thêm thiết bị mới.</div>`)+(n>100?`<div class="empty">Hiện 100/${n} kết quả — gõ thêm từ khóa để lọc</div>`:'')}
-async function toggle(id){const i=items.find(x=>x.id===id),v=!i.star;const{error}=await sb.from('devices').update({star:v,updated_at:new Date()}).eq('id',id);if(error)return err(error);i.star=v}
-function summary(){const c=k=>items.filter(i=>i.status===k).length,w=items.filter(i=>i.status!=='hoat_dong').slice(0,30);
- return `<div class="grid2"><div class="stat"><b>${items.length}</b>Tổng thiết bị</div><div class="stat"><b style="color:var(--accent)">${items.filter(i=>i.star).length}</b>Quan trọng</div><div class="stat"><b style="color:var(--warn-tx)">${c('can_bao_tri')}</b>Cần bảo trì</div><div class="stat"><b style="color:var(--bad-tx)">${c('su_co')}</b>Sự cố / Hỏng</div></div><p class="section-label">Cần chú ý</p>`+(w.map(i=>{const st=STATUS[i.status];return `<button class="item" onclick="openView('${i.id}')"><div><div class="t">${esc(i.name)}</div><div class="s"><span style="color:${st.text};font-weight:600">${st.label}</span></div></div></button>`}).join('')||`<div class="empty">Chưa có thiết bị cần chú ý</div>`)}
+ L.innerHTML=(a.map(i=>row(i,true)).join('')||`<div class="empty">Chưa có thiết bị nào phù hợp. Nhấn nút + để thêm thiết bị mới.</div>`)+(n>100?`<div class="empty">Hiện 100/${n} kết quả — gõ thêm từ khóa để lọc</div>`:'')}
+function row(i,withStar){const st=STATUS[i.status]||STATUS.hoat_dong;
+ return `<button class="item" style="border-left:4px solid ${st.swatch}" onclick="openView('${i.id}')">`+
+ (withStar?`<span onclick="event.stopPropagation();toggle('${i.id}')" style="display:flex;margin-right:8px;cursor:pointer;flex-shrink:0">${starIcon(i.star)}</span>`:'')+
+ `<div style="flex:1;min-width:0"><div class="t">${esc(i.name)}</div><div class="s"><span>${esc(i.type)}</span>${i.area?`<span style="display:flex;align-items:center;gap:3px">${ICON('pinsm')}${esc(i.area)}</span>`:''}</div></div>`+
+ `<div style="text-align:right;flex-shrink:0;margin-left:8px"><div class="badge" style="color:${st.text}">${st.label}</div></div></button>`}
+async function toggle(id){const i=items.find(x=>x.id===id),v=!i.star;const{error}=await sb.from('devices').update({star:v,updated_at:new Date()}).eq('id',id);if(error)return err(error);i.star=v;if(view==='sum')summary_render()}
+function summary_render(){$('list').innerHTML=summary()}
+function summary(){const cbt=items.filter(i=>i.status==='can_bao_tri'),sc=items.filter(i=>i.status==='su_co'),crit=items.filter(i=>i.star);
+ let h=`<div class="stat3"><div class="c"><b>${items.length}</b><div class="l">Tổng số thiết bị</div></div><div class="c"><b style="color:var(--warn-tx)">${cbt.length}</b><div class="l">Sắp đến hạn bảo trì</div></div><div class="c"><b style="color:var(--bad-tx)">${sc.length}</b><div class="l">Đang sự cố</div></div></div>`;
+ if(crit.length){h+=`<p class="section-label" style="display:flex;align-items:center;gap:5px;text-transform:none;font-weight:600;color:var(--tx)">${ICON('star').replace('__FILL__','fill="var(--accent)"').replace('__COLOR__','var(--accent)').replace('width="18" height="18"','width="13" height="13"')} Thiết bị quan trọng</p>`;
+  h+=crit.map(i=>row(i,true)).join('')}
+ h+=`<p class="section-label">Cần chú ý sắp tới</p>`;
+ const att=[...sc,...cbt];
+ h+=att.length?att.map(i=>row(i,false)).join(''):`<div class="empty">Không có thiết bị nào cần bảo trì gấp hoặc đang gặp sự cố.</div>`;
+ return h}
 
 function dataView(){$('searchbar').style.display='none';$('chips').style.display='none';
  $('list').innerHTML=`<div class="dataview"><p class="section-label">Dữ liệu</p><p style="color:var(--sec);font-size:13px">Dữ liệu lưu trên máy chủ, mọi thiết bị đăng nhập đều thấy cùng một bộ.</p><div class="row"><button class="d" onclick="logout()">Đăng xuất</button></div></div>`}
